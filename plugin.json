@@ -1,0 +1,18 @@
+{
+    "id": "wallpaperBing",
+    "name": "Wallpaper of the Day",
+    "description": "A new fresh daily wallpaper downloaded from a famous portal",
+    "version": "1.0.0",
+    "author": "maxb",
+    "type": "widget",
+    "capabilities": ["wallpaper-downloader", "dankbar-widget"],
+    "component": "./BingwallWidget.qml",
+    "settings": "./BinwallSettings.qml",
+    "icon": "wallpaper",
+    "requires": "curl",
+    "permissions": [
+        "settings_read",
+        "settings_write",
+        "process"
+    ]
+}
