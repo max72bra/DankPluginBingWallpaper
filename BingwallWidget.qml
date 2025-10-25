@@ -97,9 +97,16 @@ PluginComponent {
         if (root.isDownloading) {
             return
         }
-        root.isDownloading = true
-        console.log("Wallpaper of the day: Checking for a new wallpaper...")
-        downloadWallpaper()
+        const command = ["ping", "-c", "1", "1.1.1.1"]
+        Proc.runCommand(null, command, 
+            (output, exitCode) => {
+                if (exitCode === 0) {
+                    root.isDownloading = true
+                    console.log("Wallpaper of the day: Checking for a new wallpaper...")
+                    downloadWallpaper()
+                }
+            }
+        , 0)
     }
     
     function downloadWallpaper() {
