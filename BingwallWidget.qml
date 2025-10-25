@@ -149,6 +149,7 @@ PluginComponent {
                                 console.error("Wallpaper of the day: Failed to download image.")
                                 ToastService.showError(`Wallpaper download failed`)
                             }
+                            root.isForcing = false
                         }, 0)
                     } else {
                         console.log("Wallpaper of the day: No new wallpaper found")
@@ -156,17 +157,19 @@ PluginComponent {
                             SessionData.setWallpaper(root.currentImageSavePath)
                         }
                     }
+                    root.isDownloading = false
                 } catch (e) {
                     console.error("Error parsing Bing API response: ", e)
                 } finally {
-                    root.isDownloading = false
-                    root.isForcing = false
                     root.isStarting = false
                     console.log("Wallpaper of the day: Check finished")
                 }
             } else {
                 console.error("Wallpaper of the day: Failed to retrieve metadata.")
                 ToastService.showError(`Wallpaper download failed`)
+                root.isForcing = false
+                root.isDownloading = false
+                root.isStarting = false
             }
         }, 0)
     }
