@@ -114,13 +114,13 @@ PluginComponent {
                     if (root.currentTitle !== responseData.title || SessionData.wallpaperPath === "" || root.isForcing) {
                         root.currentTitle = responseData.title
                         root.currentDescription = responseData.copyright
-                        var lastImagePath = root.currentImageSavePath
+                        const lastImagePath = root.currentImageSavePath
     
-                        let imageUrl = responseData.url.split('&')[0]
+                        const imageUrl = responseData.url.split('&')[0]
                         root.fullImageUrl = "https://www.bing.com" + imageUrl
 
-                        var namePart = imageUrl.split('OHR.')[1];
-                        var lastDot = namePart.lastIndexOf('.');
+                        const namePart = imageUrl.split('OHR.')[1];
+                        const lastDot = namePart.lastIndexOf('.');
                         const fileName = namePart.substring(0, lastDot)
                         const extension = namePart.substring(lastDot + 1)
                         root.currentImageSavePath = Paths.strip(root.cachePath + `${fileName}.${extension}`)
