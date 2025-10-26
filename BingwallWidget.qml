@@ -132,7 +132,7 @@ PluginComponent {
                         const extension = namePart.substring(lastDot + 1)
                         root.currentImageSavePath = Paths.strip(root.cachePath + `${fileName}.${extension}`)
                         
-                        if (SettingsData.getPluginSetting("wallpaperBing", "deleteOld", true)) {
+                        if (pluginData.deleteOld) {
                             pathExists(lastImagePath, function(exists) {
                                 if (exists) {
                                     Quickshell.execDetached(["rm", "-f", lastImagePath])
@@ -182,7 +182,7 @@ PluginComponent {
     }
       
     function bingNotification() {
-        if (SettingsData.getPluginSetting("wallpaperBing", "notifications", true)) {
+        if (pluginData.notifications) {
             var command = ["notify-send", "-a", "DMS", "-i", "preferences-wallpaper", root.currentTitle, root.currentDescription]
             Quickshell.execDetached(command)
         }
