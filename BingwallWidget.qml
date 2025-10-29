@@ -261,7 +261,7 @@ PluginComponent {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.bottom: parent.bottom
-            // anchors.margins: Theme.spacingM
+            anchors.margins: Theme.spacingM
             spacing: Theme.spacingM
             
             Keys.onPressed: function(event) {
