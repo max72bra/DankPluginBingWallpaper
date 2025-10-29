@@ -2,7 +2,7 @@
     "id": "wallpaperBing",
     "name": "Wallpaper of the Day",
     "description": "A new fresh daily wallpaper downloaded from a famous portal",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "author": "maxb",
     "type": "widget",
     "capabilities": ["wallpaper-downloader", "dankbar-widget"],
