@@ -316,7 +316,7 @@ PluginComponent {
                 height: 320
                 implicitHeight: detailColumn.implicitHeight + Theme.spacingM * 2
                 radius: Theme.cornerRadius
-                color: Qt.rgba(Theme.surfaceContainerHigh.r, Theme.surfaceContainerHigh.g, Theme.surfaceContainerHigh.b, Theme.getContentBackgroundAlpha() * 0.6)
+                color: Theme.withAlpha(Theme.surfaceContainerHigh, Theme.popupTransparency)
                 border.color: Theme.outlineStrong
                 border.width: 0
                 clip: true
