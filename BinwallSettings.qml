@@ -28,4 +28,18 @@ PluginSettings {
         description: "Deletes previous wallpapers, keeping only the latest one. If disabled, it may consume disk space over time."
         defaultValue: true
     }
+
+    ToggleSetting {
+        settingKey: "enableDailyRefresh"
+        label: "Enable daily refresh at specific time"
+        description: "Automatically refresh wallpaper at a specific time each day (in addition to the 3-hour interval timer)"
+        defaultValue: false
+    }
+
+    StringSetting {
+        settingKey: "dailyRefreshTime"
+        label: "Daily refresh time (24h format)"
+        description: "Time to refresh wallpaper daily (format: HH:MM, e.g., 09:00 for 9 AM). Only used if daily refresh is enabled above."
+        defaultValue: "09:00"
+    }
 }
