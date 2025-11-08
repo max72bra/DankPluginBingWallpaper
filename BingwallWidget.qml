@@ -27,7 +27,7 @@ PluginComponent {
     property bool isLoading: false
     property bool isForcing: false
     property bool isDownloading: false
-
+    
     Component.onCompleted: {
         root.isStarting = true
         bingwallTimer.start()
@@ -35,6 +35,8 @@ PluginComponent {
     }
     
     Component.onDestruction: {}
+    
+    signal wallpaperDataUpdated()
 
     Timer {
         id: bingwallTimer
@@ -152,6 +154,7 @@ PluginComponent {
                                     ToastService.showInfo(`Check finished`)
                                 }
                                 SessionData.setWallpaper(root.currentImageSavePath)
+                                root.wallpaperDataUpdated()
                             } else {
                                 console.error("Wallpaper of the day: Failed to download image.")
                                 ToastService.showError(`Wallpaper download failed`)
@@ -162,6 +165,7 @@ PluginComponent {
                         console.log("Wallpaper of the day: No new wallpaper found")
                         if (root.isStarting === 0) {
                             SessionData.setWallpaper(root.currentImageSavePath)
+                            root.wallpaperDataUpdated()
                         }
                     }
                     root.isDownloading = false
@@ -253,10 +257,20 @@ PluginComponent {
     popoutHeight: 400
     popoutContent: Component {
         id: popoutContent
-
+        
         Column {
             id: contentColumn
 
+            Connections {
+                target: root
+                function onWallpaperDataUpdated() {
+                    bingwallTitle.text = root.currentTitle
+                    bingwallImage.source = ""
+                    bingwallImage.source = "file://" + root.currentImageSavePath
+                    bingwallDescription.text = root.currentDescription
+                }
+            }
+    
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
@@ -370,10 +384,6 @@ PluginComponent {
                                 onRunningChanged: {
                                     if (!running) {
                                         bingwallForceUpdateButton.rotation = 0
-                                        
-                                        bingwallTitle.text = root.currentTitle
-                                        bingwallImage.source = "file://" + root.currentImageSavePath
-                                        bingwallDescription.text = root.currentDescription
                                     }
                                 }
                             }
