@@ -276,6 +276,7 @@ PluginComponent {
             anchors.top: parent.top
             anchors.bottom: parent.bottom
             anchors.margins: Theme.spacingM
+            bottomPadding: Theme.spacingL
             spacing: Theme.spacingM
             
             Keys.onPressed: function(event) {
@@ -332,7 +333,7 @@ PluginComponent {
                 radius: Theme.cornerRadius
                 color: Theme.withAlpha(Theme.surfaceContainerHigh, Theme.popupTransparency)
                 border.color: Theme.outlineStrong
-                border.width: 0
+                border.width: 1
                 clip: true
 
                 Column {
