@@ -125,7 +125,8 @@ PluginComponent {
                         root.currentDescription = responseData.copyright
                         const lastImagePath = root.currentImageSavePath
     
-                        const imageUrl = responseData.url.split('&')[0]
+                        var imageUrl = responseData.url.split('&')[0]
+                        imageUrl = imageUrl.replace("1920x1080", "UHD")
                         root.fullImageUrl = "https://www.bing.com" + imageUrl
 
                         const namePart = imageUrl.split('OHR.')[1];
