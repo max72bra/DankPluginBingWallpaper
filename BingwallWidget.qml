@@ -27,7 +27,7 @@ PluginComponent {
     property bool isLoading: false
     property bool isForcing: false
     property bool isDownloading: false
-    
+
     Component.onCompleted: {
         root.isStarting = true
         bingwallTimer.start()
@@ -47,6 +47,18 @@ PluginComponent {
             wallpaperCheck()
         }
     }
+
+    Timer {
+        id: dailyRefreshTimer
+        running: false
+        repeat: false
+        onTriggered: {
+            console.log("Wallpaper of the day: Daily refresh triggered at scheduled time")
+            ToastService.showInfo("Daily wallpaper refresh triggered")
+            wallpaperCheck()
+            scheduleDailyRefresh()
+        }
+    }
     
     Connections {
         target: SessionData
@@ -58,7 +70,7 @@ PluginComponent {
         function onWallpaperCyclingModeChanged() {
             updateTimerState()
         }
-        
+
         function onPerMonitorWallpaperChanged() {
             updateTimerState()
         }
@@ -66,10 +78,21 @@ PluginComponent {
         function onMonitorCyclingSettingsChanged() {
             updateTimerState()
         }
-        
+
         function onPerModeWallpaperChanged() {
             updateTimerState()
         }
+    }
+
+    property var lastEnableDailyRefresh: pluginData.enableDailyRefresh
+    property var lastDailyRefreshTime: pluginData.dailyRefreshTime
+
+    onLastEnableDailyRefreshChanged: {
+        updateDailyRefreshTimer()
+    }
+
+    onLastDailyRefreshTimeChanged: {
+        updateDailyRefreshTimer()
     }
     
     function checkForEnvironmentAndStart() {
@@ -83,8 +106,57 @@ PluginComponent {
                 }
                 readMetadata(bingMetadataFile.text())
                 wallpaperCheck()
+                updateDailyRefreshTimer()
             })
         })
+    }
+
+    function updateDailyRefreshTimer() {
+        if (pluginData.enableDailyRefresh) {
+            scheduleDailyRefresh()
+        } else {
+            dailyRefreshTimer.stop()
+        }
+    }
+
+    function scheduleDailyRefresh() {
+        if (!pluginData.enableDailyRefresh) {
+            return
+        }
+
+        const timeString = pluginData.dailyRefreshTime || "09:00"
+        const timeParts = timeString.split(":")
+
+        if (timeParts.length !== 2) {
+            console.error("Wallpaper of the day: Invalid time format:", timeString)
+            return
+        }
+
+        const targetHour = parseInt(timeParts[0])
+        const targetMinute = parseInt(timeParts[1])
+
+        if (isNaN(targetHour) || isNaN(targetMinute) || targetHour < 0 || targetHour > 23 || targetMinute < 0 || targetMinute > 59) {
+            console.error("Wallpaper of the day: Invalid time values:", timeString)
+            return
+        }
+
+        const now = new Date()
+        const target = new Date()
+        target.setHours(targetHour)
+        target.setMinutes(targetMinute)
+        target.setSeconds(0)
+        target.setMilliseconds(0)
+
+        // If target time has already passed today, schedule for tomorrow
+        if (target <= now) {
+            target.setDate(target.getDate() + 1)
+        }
+
+        const msUntilTarget = target - now
+        dailyRefreshTimer.interval = msUntilTarget
+        dailyRefreshTimer.start()
+
+        console.log("Wallpaper of the day: Daily refresh scheduled for", target.toLocaleString(), "(in", Math.round(msUntilTarget / 1000 / 60), "minutes)")
     }
     
     function forceWallpaperCheck() {
@@ -258,7 +330,7 @@ PluginComponent {
     popoutHeight: 400
     popoutContent: Component {
         id: popoutContent
-        
+
         Column {
             id: contentColumn
 
