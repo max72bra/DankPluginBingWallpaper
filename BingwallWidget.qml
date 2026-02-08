@@ -30,14 +30,23 @@ PluginComponent {
 
     Component.onCompleted: {
         root.isStarting = true
-        bingwallTimer.start()
-        checkForEnvironmentAndStart()
+        startDelayTimer.start()
     }
     
     Component.onDestruction: {}
     
     signal wallpaperDataUpdated()
 
+    Timer {
+        id: startDelayTimer
+        interval: 1000
+        running: false
+        repeat: false
+        onTriggered: {
+            checkForEnvironmentAndStart()
+        }
+    }
+    
     Timer {
         id: bingwallTimer
         interval: root.bingDownloadInterval
@@ -107,6 +116,7 @@ PluginComponent {
                 readMetadata(bingMetadataFile.text())
                 wallpaperCheck()
                 updateDailyRefreshTimer()
+                bingwallTimer.start()
             })
         })
     }
