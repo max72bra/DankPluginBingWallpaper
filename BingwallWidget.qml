@@ -348,8 +348,8 @@ PluginComponent {
                 target: root
                 function onWallpaperDataUpdated() {
                     bingwallTitle.text = root.currentTitle
-                    bingwallImage.source = ""
-                    bingwallImage.source = "file://" + root.currentImageSavePath
+                    bingwallImage.imagePath = ""
+                    bingwallImage.imagePath = "file://" + root.currentImageSavePath
                     bingwallDescription.text = root.currentDescription
                 }
             }
@@ -491,7 +491,7 @@ PluginComponent {
                                 
                                 anchors.fill: parent
                                 anchors.margins: 1
-                                source: "file://" + root.currentImageSavePath
+                                imagePath: "file://" + root.currentImageSavePath
                                 fillMode: Image.PreserveAspectCrop
                                 visible: true
                                 maxCacheSize: 160
