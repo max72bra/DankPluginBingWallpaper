@@ -15,7 +15,9 @@ PluginComponent {
     
     property string systemLocale: Qt.locale().name
     
-    property string cachePath: Paths.home + "/Pictures/BingWallpaper/"
+    property string cachePath: pluginData.GnomeExtensionBingWallpaperCompatibility
+                               ? Paths.home + "/Pictures/BingWallpaper/"
+                               : Paths.cache + "/bingwall/"
     property string currentMetadatapath: root.cachePath + "metadata.json"
     property string fullImageUrl: ""
     
@@ -216,14 +218,19 @@ PluginComponent {
                         const fileName = namePart.substring(0, lastDot)
                         const extension = namePart.substring(lastDot + 1)
                         
-                        // Add date prefix in YYYYMMDD format to match gnome extension
-                        const now = new Date()
-                        const year = now.getFullYear()
-                        const month = String(now.getMonth() + 1).padStart(2, '0')
-                        const day = String(now.getDate() - 1).padStart(2, '0')
-                        const datePrefix = `${year}${month}${day}`
-                        
-                        root.currentImageSavePath = Paths.strip(root.cachePath + `${datePrefix}-${fileName}.${extension}`)
+                        if (pluginData.GnomeExtensionBingWallpaperCompatibility) {
+                            // Add date prefix in YYYYMMDD format to match gnome extension
+                            const now = new Date()
+                            const year = now.getFullYear()
+                            const month = String(now.getMonth() + 1).padStart(2, '0')
+                            const day = String(now.getDate() - 1).padStart(2, '0')
+                            const datePrefix = `${year}${month}${day}`
+                            
+                            root.currentImageSavePath = Paths.strip(root.cachePath + `${datePrefix}-${fileName}.${extension}`)
+                        } else {
+                            // Default behavior
+                            root.currentImageSavePath = Paths.strip(root.cachePath + `${fileName}.${extension}`)
+                        }
                         
                         if (pluginData.deleteOld) {
                             pathExists(lastImagePath, function(exists) {
