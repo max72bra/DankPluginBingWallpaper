@@ -18,7 +18,7 @@ PluginComponent {
     property string cachePath: pluginData.GnomeExtensionBingWallpaperCompatibility
                                ? Paths.home + "/Pictures/BingWallpaper/"
                                : Paths.cache + "/bingwall/"
-    property string currentMetadatapath: root.cachePath + "metadata.json"
+    property string currentMetadatapath: Paths.cache + "/bingwall/metadata.json"
     property string fullImageUrl: ""
     
     property string currentImageSavePath: ""
@@ -220,12 +220,7 @@ PluginComponent {
                         
                         if (pluginData.GnomeExtensionBingWallpaperCompatibility) {
                             // Add date prefix in YYYYMMDD format to match gnome extension
-                            const now = new Date()
-                            const year = now.getFullYear()
-                            const month = String(now.getMonth() + 1).padStart(2, '0')
-                            const day = String(now.getDate() - 1).padStart(2, '0')
-                            const datePrefix = `${year}${month}${day}`
-                            
+                            const datePrefix = responseData.startdate
                             root.currentImageSavePath = Paths.strip(root.cachePath + `${datePrefix}-${fileName}.${extension}`)
                         } else {
                             // Default behavior

@@ -33,7 +33,7 @@ PluginSettings {
         settingKey: "GnomeExtensionBingWallpaperCompatibility"
         label: "Enable compatibility with\nGnome Extension Bing Wallpaper"
         description: "Store images in the same location as the Gnome Extension Bing Wallpaper (usually ~/Pictures/BingWallpaper)"
-        defaultValue: true
+        defaultValue: false
     }
     
     ToggleSetting {
