@@ -1,4 +1,5 @@
 import QtQuick
+import QtCore
 import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
@@ -16,7 +17,7 @@ PluginComponent {
     property string systemLocale: Qt.locale().name
     
     property string cachePath: pluginData.GnomeExtensionBingWallpaperCompatibility
-                               ? Paths.home + "/Pictures/BingWallpaper/"
+                               ? StandardPaths.writableLocation(StandardPaths.PicturesLocation) + "/BingWallpaper/"
                                : Paths.cache + "/bingwall/"
     property string currentMetadatapath: Paths.cache + "/bingwall/metadata.json"
     property string fullImageUrl: ""
