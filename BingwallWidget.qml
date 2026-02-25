@@ -359,7 +359,6 @@ PluginComponent {
                 target: root
                 function onWallpaperDataUpdated() {
                     bingwallTitle.text = root.currentTitle
-                    bingwallImage.imagePath = ""
                     bingwallImage.imagePath = "file://" + root.currentImageSavePath
                     bingwallDescription.text = root.currentDescription
                 }
