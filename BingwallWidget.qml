@@ -1,4 +1,5 @@
 import QtQuick
+import QtCore
 import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
@@ -15,8 +16,10 @@ PluginComponent {
     
     property string systemLocale: Qt.locale().name
     
-    property string cachePath: Paths.cache + "/bingwall/"
-    property string currentMetadatapath: root.cachePath + "metadata.json"
+    property string cachePath: pluginData.GnomeExtensionBingWallpaperCompatibility
+                               ? StandardPaths.writableLocation(StandardPaths.PicturesLocation) + "/BingWallpaper/"
+                               : Paths.cache + "/bingwall/"
+    property string currentMetadatapath: Paths.cache + "/bingwall/metadata.json"
     property string fullImageUrl: ""
     
     property string currentImageSavePath: ""
@@ -215,7 +218,15 @@ PluginComponent {
                         const lastDot = namePart.lastIndexOf('.');
                         const fileName = namePart.substring(0, lastDot)
                         const extension = namePart.substring(lastDot + 1)
-                        root.currentImageSavePath = Paths.strip(root.cachePath + `${fileName}.${extension}`)
+                        
+                        if (pluginData.GnomeExtensionBingWallpaperCompatibility) {
+                            // Add date prefix in YYYYMMDD format to match gnome extension
+                            const datePrefix = responseData.startdate
+                            root.currentImageSavePath = Paths.strip(root.cachePath + `${datePrefix}-${fileName}.${extension}`)
+                        } else {
+                            // Default behavior
+                            root.currentImageSavePath = Paths.strip(root.cachePath + `${fileName}.${extension}`)
+                        }
                         
                         if (pluginData.deleteOld) {
                             pathExists(lastImagePath, function(exists) {

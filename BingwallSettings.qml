@@ -30,6 +30,13 @@ PluginSettings {
     }
 
     ToggleSetting {
+        settingKey: "GnomeExtensionBingWallpaperCompatibility"
+        label: "Enable compatibility with\nGnome Extension Bing Wallpaper"
+        description: "Store images in the same location as the Gnome Extension Bing Wallpaper (usually ~/Pictures/BingWallpaper)"
+        defaultValue: false
+    }
+    
+    ToggleSetting {
         settingKey: "enableDailyRefresh"
         label: "Enable daily refresh at specific time"
         description: "Automatically refresh wallpaper at a specific time each day (in addition to the 3-hour interval timer)"
