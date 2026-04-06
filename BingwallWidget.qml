@@ -254,15 +254,17 @@ PluginComponent {
                                 ToastService.showError(`Wallpaper download failed`)
                             }
                             root.isForcing = false
+                            root.isDownloading = false
                         }, 0)
                     } else {
                         console.log("Wallpaper of the day: No new wallpaper found")
-                        if (root.isStarting === 0) {
+                        if (!root.isStarting) {
                             SessionData.setWallpaper(root.currentImageSavePath)
                             root.wallpaperDataUpdated()
                         }
+                        root.isForcing = false
+                        root.isDownloading = false
                     }
-                    root.isDownloading = false
                 } catch (e) {
                     console.error("Error parsing Bing API response: ", e)
                 } finally {
@@ -290,6 +292,9 @@ PluginComponent {
         if (SessionData.perMonitorWallpaper || SessionData.wallpaperCyclingEnabled || SessionData.perModeWallpaper) {
             bingwallTimer.stop()
             ToastService.showInfo(`Wallpaper of the Day: update timer stopped`)
+        } else {
+            if (!bingwallTimer.running) bingwallTimer.start()
+            ToastService.showInfo(`Wallpaper of the Day: update timer started`)
         }
     }
    
