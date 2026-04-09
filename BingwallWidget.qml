@@ -254,7 +254,6 @@ PluginComponent {
                                 ToastService.showError(`Wallpaper download failed`)
                             }
                             root.isForcing = false
-                            root.isDownloading = false
                         }, 0)
                     } else {
                         console.log("Wallpaper of the day: No new wallpaper found")
@@ -263,12 +262,13 @@ PluginComponent {
                             root.wallpaperDataUpdated()
                         }
                         root.isForcing = false
-                        root.isDownloading = false
                     }
                 } catch (e) {
+                    root.isForcing = false
                     console.error("Error parsing Bing API response: ", e)
                 } finally {
                     root.isStarting = false
+                    root.isDownloading = false
                     console.log("Wallpaper of the day: Check finished")
                 }
             } else {
