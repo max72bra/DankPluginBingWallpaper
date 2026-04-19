@@ -16,7 +16,7 @@ PluginComponent {
     property string cachePath: pluginData.GnomeExtensionBingWallpaperCompatibility
                                ? StandardPaths.writableLocation(StandardPaths.PicturesLocation) + "/BingWallpaper/"
                                : Paths.cache + "/bingwall/"
-    property string currentMetadataPath: Paths.cache + "/bingwall/metadata.json"
+    property string currentMetadataPath:  Paths.cache + "/bingwall/metadata.json"
     property string statusPath:           Paths.cache + "/bingwall/status.json"
     property string forceTriggerPath:     Paths.cache + "/bingwall/force.trigger"
     property string fullImageUrl: ""
@@ -83,21 +83,23 @@ PluginComponent {
 
     // -------------------------------------------------------------------------
     // Force trigger: widget writes a timestamp here to request a force download
+    // inotifywait watches the directory so it works even before the file exists
+    // and catches both normal writes (close_write) and atomic writes (moved_to)
     // -------------------------------------------------------------------------
-    FileView {
-        id: forceTriggerFile
-        path: root.forceTriggerPath
-        blockLoading: true
-        blockWrites: true
-        onFileChanged: {
-            if (!root.isDownloading) {
-                console.log("Wallpaper of the day: Force trigger received from widget")
-                root.isForcing = true
-                wallpaperCheck()
+    Process {
+        id: forceTriggerWatcher
+        running: false
+        command: ["inotifywait", "-q", "-m", "-e", "close_write,moved_to",
+                  "--format", "%f",
+                  Paths.strip(Paths.cache + "/bingwall/")]
+        stdout: SplitParser {
+            onRead: line => {
+                if (line.trim() === "force.trigger" && !root.isDownloading) {
+                    console.log("Wallpaper of the day: Force trigger received from widget")
+                    root.isForcing = true
+                    wallpaperCheck()
+                }
             }
-        }
-        onLoadFailed: error => {
-            // File may not exist yet - that's fine, ignore
         }
     }
 
@@ -107,7 +109,6 @@ PluginComponent {
         blockLoading: true
         blockWrites: true
         atomicWrites: true
-        onFileChanged: {}
         onLoadFailed: error => {
             console.error("Wallpaper of the day: Error with metadata file => ", error)
             bingwallTimer.stop()
@@ -132,6 +133,12 @@ PluginComponent {
             if (!exists) {
                 Paths.mkdir(root.cachePath)
             }
+            // bingwall/ always needed for metadata, status and force trigger
+            const bingwallCacheDir = Paths.cache + "/bingwall/"
+            pathExists(bingwallCacheDir, function(exists) {
+                if (!exists) Paths.mkdir(bingwallCacheDir)
+            })
+            forceTriggerWatcher.running = true
             pathExists(root.currentMetadataPath, function(exists) {
                 if (!exists) {
                     saveMetadata()
@@ -209,8 +216,8 @@ PluginComponent {
     }
 
     function downloadWallpaper() {
-        const curlCmd = `curl -s 'https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=${root.systemLocale}'`
-        Proc.runCommand(null, ["sh", "-c", curlCmd], (output, exitCode) => {
+        const bingApiUrl = `https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=${root.systemLocale}`
+        Proc.runCommand(null, ["curl", "-s", bingApiUrl], (output, exitCode) => {
             if (exitCode === 0) {
                 try {
                     const response     = JSON.parse(output.trim())
@@ -221,11 +228,16 @@ PluginComponent {
                         root.currentDescription = responseData.copyright
                         const lastImagePath     = root.currentImageSavePath
 
-                        var imageUrl = responseData.url.split('&')[0]
-                        imageUrl = imageUrl.replace("1920x1080", "UHD")
+                        const imageUrl = responseData.url.split('&')[0].replace("1920x1080", "UHD")
                         root.fullImageUrl = "https://www.bing.com" + imageUrl
 
                         const namePart  = imageUrl.split('OHR.')[1]
+                        if (!namePart) {
+                            console.error("Wallpaper of the day: Unexpected image URL format:", imageUrl)
+                            root.isForcing = false
+                            root.isDownloading = false
+                            return
+                        }
                         const lastDot   = namePart.lastIndexOf('.')
                         const fileName  = namePart.substring(0, lastDot)
                         const extension = namePart.substring(lastDot + 1)
@@ -245,8 +257,7 @@ PluginComponent {
 
                         saveMetadata()
 
-                        const dlCmd = `curl -s -o '${root.currentImageSavePath}' '${root.fullImageUrl}'`
-                        Proc.runCommand(null, ["sh", "-c", dlCmd], (output, exitCode) => {
+                        Proc.runCommand(null, ["curl", "-s", "-o", root.currentImageSavePath, root.fullImageUrl], (output, exitCode) => {
                             if (exitCode === 0) {
                                 if (!root.isForcing) {
                                     bingNotification()
@@ -272,11 +283,10 @@ PluginComponent {
                     }
                 } catch (e) {
                     console.error("Wallpaper of the day: Error parsing Bing API response: ", e)
-                } finally {
-                    root.isStarting = false
                     root.isForcing = false
                     root.isDownloading = false
-                    console.log("Wallpaper of the day: Check finished")
+                } finally {
+                    root.isStarting = false
                 }
             } else {
                 console.error("Wallpaper of the day: Failed to retrieve metadata.")
@@ -337,8 +347,7 @@ PluginComponent {
     }
 
     function pathExists(path: url, callback) {
-        const stripped = Paths.strip(path)
-        Proc.runCommand(null, ["sh", "-c", `test -e '${stripped}'`], (output, exitCode) => {
+        Proc.runCommand(null, ["test", "-e", Paths.strip(path)], (output, exitCode) => {
             if (callback) callback(exitCode === 0)
         }, 0)
     }
