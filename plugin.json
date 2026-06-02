@@ -2,7 +2,7 @@
     "id": "wallpaperBing",
     "name": "Wallpaper of the Day",
     "description": "A new fresh daily wallpaper downloaded from a famous portal",
-    "version": "1.5.1",
+    "version": "1.5.2",
     "author": "maxb",
     "type": "daemon",
     "capabilities": ["wallpaper-downloader", "background-deamon"],
