@@ -129,26 +129,32 @@ PluginComponent {
     // -------------------------------------------------------------------------
 
     function checkForEnvironmentAndStart() {
-        pathExists(root.cachePath, function(exists) {
-            if (!exists) {
-                Paths.mkdir(root.cachePath)
+        Proc.runCommand(null, ["which", "inotifywait"], (output, exitCode) => {
+            if (exitCode !== 0) {
+                ToastService.showError("Wallpaper of the Day: inotifywait not found - install inotify-tools")
+                console.error("Wallpaper of the day: inotifywait not found, install inotify-tools")
+                return
             }
-            // bingwall/ always needed for metadata, status and force trigger
-            const bingwallCacheDir = Paths.cache + "/bingwall/"
-            pathExists(bingwallCacheDir, function(exists) {
-                if (!exists) Paths.mkdir(bingwallCacheDir)
-            })
-            forceTriggerWatcher.running = true
-            pathExists(root.currentMetadataPath, function(exists) {
+            pathExists(root.cachePath, function(exists) {
                 if (!exists) {
-                    saveMetadata()
+                    Paths.mkdir(root.cachePath)
                 }
-                readMetadata(bingMetadataFile.text())
-                wallpaperCheck()
-                updateDailyRefreshTimer()
-                bingwallTimer.start()
+                const bingwallCacheDir = Paths.cache + "/bingwall/"
+                pathExists(bingwallCacheDir, function(cacheExists) {
+                    if (!cacheExists) Paths.mkdir(bingwallCacheDir)
+                    forceTriggerWatcher.running = true
+                    pathExists(root.currentMetadataPath, function(metaExists) {
+                        if (!metaExists) {
+                            saveMetadata()
+                        }
+                        readMetadata(bingMetadataFile.text())
+                        wallpaperCheck()
+                        updateDailyRefreshTimer()
+                        bingwallTimer.start()
+                    })
+                })
             })
-        })
+        }, 0)
     }
 
     function updateDailyRefreshTimer() {
@@ -188,6 +194,8 @@ PluginComponent {
         target.setMilliseconds(0)
 
         if (target <= now) {
+            console.log("Wallpaper of the day: Scheduled time already passed, triggering catch-up refresh")
+            wallpaperCheck()
             target.setDate(target.getDate() + 1)
         }
 
