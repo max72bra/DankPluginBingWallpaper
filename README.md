@@ -19,4 +19,4 @@ No settings required.
 
 ## Requirements
 
-- `curl`
+- `curl` `inotify-tools`
