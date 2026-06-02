@@ -9,7 +9,7 @@
     "component": "./BingwallDaemon.qml",
     "settings": "./BingwallSettings.qml",
     "icon": "wallpaper",
-    "requires": "curl",
+    "requires": ["curl","inotify-tools"],
     "requires_dms": ">=1.4.0",
     "permissions": [
         "settings_read",
