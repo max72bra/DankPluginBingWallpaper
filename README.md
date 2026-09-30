@@ -6,6 +6,9 @@ A fresh new daily wallpaper downloaded from a famous portal.
 
 Download the daily image from Bing and set it as your desktop background.
 
+The plugin checks for a new image every 3 hours (and optionally at a fixed daily time).
+Network access is limited to `www.bing.com` (the `HPImageArchive` API and the image itself).
+
 ## Installation
 
 1. Open DMS Settings → Plugins
@@ -21,3 +24,4 @@ No settings required.
 
 - `curl`
 - `inotify-tools`
+- `libnotify` (`notify-send`, used for the optional desktop notification)

@@ -210,17 +210,9 @@ PluginComponent {
     function wallpaperCheck() {
         if (root.isDownloading) return
 
-        const command = ["ping", "-c", "1", "1.1.1.1"]
-        Proc.runCommand(null, command, (output, exitCode) => {
-            if (exitCode === 0) {
-                root.isDownloading = true
-                console.log("Wallpaper of the day: Checking for a new wallpaper...")
-                downloadWallpaper()
-            } else {
-                console.error("Wallpaper of the day: Ping failed, no internet?")
-                root.isForcing = false
-            }
-        }, 0)
+        root.isDownloading = true
+        console.log("Wallpaper of the day: Checking for a new wallpaper...")
+        downloadWallpaper()
     }
 
     function downloadWallpaper() {
@@ -296,8 +288,15 @@ PluginComponent {
                 } finally {
                     root.isStarting = false
                 }
+            } else if (exitCode === 6 || exitCode === 7 || exitCode === 28) {
+                // couldn't resolve host / connect / timed out: most likely offline, retry on next check
+                console.error("Wallpaper of the day: Bing unreachable, no internet? (curl exit code " + exitCode + ")")
+                if (root.isForcing) ToastService.showError("Wallpaper of the Day: Bing unreachable")
+                root.isForcing = false
+                root.isDownloading = false
+                root.isStarting = false
             } else {
-                console.error("Wallpaper of the day: Failed to retrieve metadata.")
+                console.error("Wallpaper of the day: Failed to retrieve metadata. (curl exit code " + exitCode + ")")
                 ToastService.showError("Wallpaper download failed")
                 root.isForcing = false
                 root.isDownloading = false
