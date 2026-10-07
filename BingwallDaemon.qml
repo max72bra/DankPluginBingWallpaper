@@ -11,7 +11,7 @@ PluginComponent {
 
     property int bingDownloadInterval: 3 * 60 * 60 * 1000
 
-    property string systemLocale: Qt.locale().name
+    property string systemLocale: Qt.locale().name.replace(/_/g, "-")
 
     property string cachePath: pluginData.GnomeExtensionBingWallpaperCompatibility
                                ? StandardPaths.writableLocation(StandardPaths.PicturesLocation) + "/BingWallpaper/"
