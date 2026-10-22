@@ -264,22 +264,28 @@ PluginComponent {
                                     failDownload(error)
                                     return
                                 }
-                                root.currentTitle = responseData.title
-                                root.currentDescription = responseData.copyright
-                                root.currentImageSavePath = imageSavePath
-                                saveMetadata()
-                                SessionData.setWallpaper(imageSavePath)
+                                // async callback: outer try/catch doesn't cover it, so always release the lock
+                                try {
+                                    root.currentTitle = responseData.title
+                                    root.currentDescription = responseData.copyright
+                                    root.currentImageSavePath = imageSavePath
+                                    saveMetadata()
+                                    SessionData.setWallpaper(imageSavePath)
 
-                                if (pluginData.deleteOld && lastImagePath && lastImagePath !== imageSavePath) {
-                                    Quickshell.execDetached(["rm", "-f", lastImagePath])
+                                    if (pluginData.deleteOld && lastImagePath && lastImagePath !== imageSavePath) {
+                                        Quickshell.execDetached(["rm", "-f", lastImagePath])
+                                    }
+                                    if (!root.isForcing) {
+                                        bingNotification()
+                                    } else {
+                                        ToastService.showInfo("Wallpaper check finished")
+                                    }
+                                } catch (e) {
+                                    console.error("Wallpaper of the day: Error applying wallpaper: ", e)
+                                } finally {
+                                    root.isForcing = false
+                                    root.isDownloading = false
                                 }
-                                if (!root.isForcing) {
-                                    bingNotification()
-                                } else {
-                                    ToastService.showInfo("Wallpaper check finished")
-                                }
-                                root.isForcing = false
-                                root.isDownloading = false
                             })
                         }, 0)
 
