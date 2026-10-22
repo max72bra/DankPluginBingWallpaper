@@ -224,9 +224,7 @@ PluginComponent {
                     const responseData = response.images[0]
 
                     if (root.currentTitle !== responseData.title || SessionData.wallpaperPath === "" || root.isForcing) {
-                        root.currentTitle       = responseData.title
-                        root.currentDescription = responseData.copyright
-                        const lastImagePath     = root.currentImageSavePath
+                        const lastImagePath = root.currentImageSavePath
 
                         const imageUrl = responseData.url.split('&')[0].replace("1920x1080", "UHD")
                         root.fullImageUrl = "https://www.bing.com" + imageUrl
@@ -242,35 +240,47 @@ PluginComponent {
                         const fileName  = namePart.substring(0, lastDot)
                         const extension = namePart.substring(lastDot + 1)
 
-                        if (pluginData.GnomeExtensionBingWallpaperCompatibility) {
-                            const datePrefix = responseData.startdate
-                            root.currentImageSavePath = Paths.strip(root.cachePath + `${datePrefix}-${fileName}.${extension}`)
-                        } else {
-                            root.currentImageSavePath = Paths.strip(root.cachePath + `${fileName}.${extension}`)
+                        const datePrefix = pluginData.GnomeExtensionBingWallpaperCompatibility
+                                           ? responseData.startdate + "-" : ""
+                        const imageSavePath = Paths.strip(root.cachePath + `${datePrefix}${fileName}.${extension}`)
+                        const temporaryPath = imageSavePath + ".part"
+
+                        const failDownload = message => {
+                            console.error("Wallpaper of the day:", message)
+                            ToastService.showError("Wallpaper download failed")
+                            Proc.runCommand(null, ["rm", "-f", temporaryPath], () => {
+                                root.isForcing = false
+                                root.isDownloading = false
+                            }, 0)
                         }
 
-                        if (pluginData.deleteOld) {
-                            pathExists(lastImagePath, function(exists) {
-                                if (exists) Quickshell.execDetached(["rm", "-f", lastImagePath])
-                            })
-                        }
+                        Proc.runCommand(null, ["curl", "-f", "-sS", "-L", "-o", temporaryPath, root.fullImageUrl], (output, exitCode) => {
+                            if (exitCode !== 0) {
+                                failDownload("Failed to download image (curl exit code " + exitCode + ")")
+                                return
+                            }
+                            installDownloadedImage(temporaryPath, imageSavePath, error => {
+                                if (error) {
+                                    failDownload(error)
+                                    return
+                                }
+                                root.currentTitle = responseData.title
+                                root.currentDescription = responseData.copyright
+                                root.currentImageSavePath = imageSavePath
+                                saveMetadata()
+                                SessionData.setWallpaper(imageSavePath)
 
-                        saveMetadata()
-
-                        Proc.runCommand(null, ["curl", "-s", "-o", root.currentImageSavePath, root.fullImageUrl], (output, exitCode) => {
-                            if (exitCode === 0) {
+                                if (pluginData.deleteOld && lastImagePath && lastImagePath !== imageSavePath) {
+                                    Quickshell.execDetached(["rm", "-f", lastImagePath])
+                                }
                                 if (!root.isForcing) {
                                     bingNotification()
                                 } else {
                                     ToastService.showInfo("Wallpaper check finished")
                                 }
-                                SessionData.setWallpaper(root.currentImageSavePath)
-                            } else {
-                                console.error("Wallpaper of the day: Failed to download image.")
-                                ToastService.showError("Wallpaper download failed")
-                            }
-                            root.isForcing = false
-                            root.isDownloading = false
+                                root.isForcing = false
+                                root.isDownloading = false
+                            })
                         }, 0)
 
                     } else {
@@ -356,6 +366,19 @@ PluginComponent {
     function pathExists(path: url, callback) {
         Proc.runCommand(null, ["test", "-e", Paths.strip(path)], (output, exitCode) => {
             if (callback) callback(exitCode === 0)
+        }, 0)
+    }
+
+    function installDownloadedImage(temporaryPath, imageSavePath, callback) {
+        // JPEG start/end markers (FFD8/FFD9).
+        Proc.runCommand(null, ["sh", "-c", '(head -c 2 "$1"; tail -c 2 "$1") | od -An -tx1', "sh", temporaryPath], (output, exitCode) => {
+            if (exitCode !== 0 || output.replace(/\s/g, "") !== "ffd8ffd9") {
+                callback("JPEG marker check failed")
+                return
+            }
+            Proc.runCommand(null, ["mv", "-f", temporaryPath, imageSavePath], (output, exitCode) => {
+                callback(exitCode === 0 ? "" : "Failed to replace wallpaper (mv exit code " + exitCode + ")")
+            }, 0)
         }, 0)
     }
 }
