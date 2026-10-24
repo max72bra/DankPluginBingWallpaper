@@ -2,6 +2,8 @@
 
 A fresh new daily wallpaper downloaded from a famous portal.
 
+Works with Dux Shell 2.x (formerly DankMaterialShell) and DMS >= 1.4.
+
 ## Features
 
 Download the daily image from Bing and set it as your desktop background.
