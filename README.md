@@ -8,7 +8,8 @@ Works with Dux Shell 2.x (formerly DankMaterialShell) and DMS >= 1.4.
 
 Download the daily image from Bing and set it as your desktop background.
 
-The plugin checks for a new image every 3 hours (and optionally at a fixed daily time).
+The plugin checks for a new image every 3 hours, or only at a fixed daily time if daily refresh is enabled.
+It only changes the wallpaper when Bing publishes a new image, so a wallpaper you pick yourself is left alone.
 Network access is limited to `www.bing.com` (the `HPImageArchive` API and the image itself).
 
 ## Installation
