@@ -208,6 +208,15 @@ PluginComponent {
         wallpaperCheck()
     }
 
+    // Bing's startdate is the market's date, which can lag the local date (it-IT: 2300 UTC
+    // of the previous day). fullstartdate is UTC yyyyMMddHHmm, so convert it to local.
+    function bingLocalDate(responseData) {
+        const full = responseData.fullstartdate
+        if (!full || full.length !== 12) return responseData.startdate
+        const p = (start, len) => parseInt(full.substr(start, len))
+        return localDateString(new Date(Date.UTC(p(0, 4), p(4, 2) - 1, p(6, 2), p(8, 2), p(10, 2))))
+    }
+
     // Called after every successful Bing lookup. Today's run counts as done once
     // Bing serves today's image, whether or not it had to be downloaded.
     function finishDailyRun(imageDate) {
@@ -262,7 +271,7 @@ PluginComponent {
                 const namePart = imageUrl.split('OHR.')[1]
                 if (!namePart) {
                     console.error("Wallpaper of the day: Unexpected image URL format:", imageUrl)
-                    finishCheck(false)
+                    finishCheck(true)
                     return
                 }
                 const lastDot   = namePart.lastIndexOf('.')
@@ -278,7 +287,7 @@ PluginComponent {
                 if (imageSavePath === root.currentImageSavePath && SessionData.wallpaperPath !== "" && !root.isForcing) {
                     // Nothing new: leave whatever wallpaper the user has chosen alone.
                     console.log("Wallpaper of the day: No new wallpaper found")
-                    finishDailyRun(responseData.startdate)
+                    finishDailyRun(bingLocalDate(responseData))
                     finishCheck(false)
                     return
                 }
@@ -307,7 +316,7 @@ PluginComponent {
                             root.currentTitle = responseData.title
                             root.currentDescription = responseData.copyright
                             root.currentImageSavePath = imageSavePath
-                            finishDailyRun(responseData.startdate)
+                            finishDailyRun(bingLocalDate(responseData))
                             saveMetadata()
                             SessionData.setWallpaper(imageSavePath)
 
@@ -328,7 +337,7 @@ PluginComponent {
                 }, 0)
             } catch (e) {
                 console.error("Wallpaper of the day: Error parsing Bing API response: ", e)
-                finishCheck(false)
+                finishCheck(true)
             }
         }, 0)
     }
