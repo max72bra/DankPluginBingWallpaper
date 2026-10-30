@@ -39,7 +39,7 @@ PluginSettings {
     ToggleSetting {
         settingKey: "enableDailyRefresh"
         label: "Enable daily refresh at specific time"
-        description: "Automatically refresh wallpaper at a specific time each day (in addition to the 3-hour interval timer)"
+        description: "Change the wallpaper only at a specific time each day (replaces the 3-hour check). If Bing has not published today's image yet, it retries every 30 minutes."
         defaultValue: false
     }
 

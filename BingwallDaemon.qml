@@ -10,6 +10,8 @@ PluginComponent {
     id: root
 
     property int bingDownloadInterval: 3 * 60 * 60 * 1000
+    property int dailyRetryInterval:   30 * 60 * 1000
+    property int offlineRetryInterval: 5 * 60 * 1000
 
     property string systemLocale: Qt.locale().name.replace(/_/g, "-")
 
@@ -25,17 +27,27 @@ PluginComponent {
     property string currentTitle: ""
     property string currentDescription: ""
 
-    property bool isStarting: false
+    // Local date (yyyyMMdd) on which the scheduled daily refresh last completed.
+    // Persisted so a restart after the scheduled time does not refresh again.
+    property string lastDailyRunDate: ""
+    // Wall-clock ms before which the scheduled refresh must not retry
+    // (Bing has not published today's image yet, or we were offline).
+    property real dailyRetryAt: 0
+
+    property bool isStarted: false
     property bool isLoading: false
     property bool isForcing: false
+    property bool isScheduledRun: false
     property bool isDownloading: false
+
+    readonly property bool dailyMode: !!pluginData.enableDailyRefresh
+    readonly property bool externalWallpaperControl: SessionData.perMonitorWallpaper
+                                                     || SessionData.wallpaperCyclingEnabled
+                                                     || SessionData.perModeWallpaper
 
     onIsDownloadingChanged: saveStatus()
 
-    Component.onCompleted: {
-        root.isStarting = true
-        startDelayTimer.start()
-    }
+    Component.onCompleted: startDelayTimer.start()
 
     Timer {
         id: startDelayTimer
@@ -45,41 +57,37 @@ PluginComponent {
         onTriggered: checkForEnvironmentAndStart()
     }
 
+    // Interval mode: poll Bing and apply a wallpaper only when a new image appears.
     Timer {
         id: bingwallTimer
         interval: root.bingDownloadInterval
-        running: false
+        running: root.isStarted && !root.dailyMode && !root.externalWallpaperControl
         repeat: true
         onTriggered: wallpaperCheck()
     }
 
+    // Daily mode: compare against the wall clock every minute instead of arming
+    // one long timer, which stops counting while the machine is suspended.
     Timer {
-        id: dailyRefreshTimer
-        running: false
-        repeat: false
-        onTriggered: {
-            console.log("Wallpaper of the day: Daily refresh triggered at scheduled time")
-            ToastService.showInfo("Daily wallpaper refresh triggered")
-            wallpaperCheck()
-            scheduleDailyRefresh()
-        }
+        id: dailyScheduleTicker
+        interval: 60 * 1000
+        running: root.isStarted && root.dailyMode && !root.externalWallpaperControl
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: dailyTick()
     }
 
-    Connections {
-        target: SessionData
-
-        function onWallpaperCyclingEnabledChanged()  { updateTimerState() }
-        function onWallpaperCyclingModeChanged()     { updateTimerState() }
-        function onPerMonitorWallpaperChanged()      { updateTimerState() }
-        function onMonitorCyclingSettingsChanged()   { updateTimerState() }
-        function onPerModeWallpaperChanged()         { updateTimerState() }
+    onExternalWallpaperControlChanged: {
+        if (!root.isStarted) return
+        ToastService.showInfo(root.externalWallpaperControl
+                              ? "Wallpaper of the Day: update timer stopped"
+                              : "Wallpaper of the Day: update timer started")
     }
 
-    property var lastEnableDailyRefresh: pluginData.enableDailyRefresh
     property var lastDailyRefreshTime: pluginData.dailyRefreshTime
 
-    onLastEnableDailyRefreshChanged: updateDailyRefreshTimer()
-    onLastDailyRefreshTimeChanged:   updateDailyRefreshTimer()
+    onDailyModeChanged:            root.dailyRetryAt = 0
+    onLastDailyRefreshTimeChanged: root.dailyRetryAt = 0
 
     // -------------------------------------------------------------------------
     // Force trigger: widget writes a timestamp here to request a force download
@@ -111,7 +119,6 @@ PluginComponent {
         atomicWrites: true
         onLoadFailed: error => {
             console.error("Wallpaper of the day: Error with metadata file => ", error)
-            bingwallTimer.stop()
         }
     }
 
@@ -148,63 +155,79 @@ PluginComponent {
                             saveMetadata()
                         }
                         readMetadata(bingMetadataFile.text())
-                        wallpaperCheck()
-                        updateDailyRefreshTimer()
-                        bingwallTimer.start()
+                        // Daily mode catches up through dailyScheduleTicker's first tick.
+                        if (!root.dailyMode && !root.externalWallpaperControl) wallpaperCheck()
+                        root.isStarted = true
                     })
                 })
             })
         }, 0)
     }
 
-    function updateDailyRefreshTimer() {
-        if (pluginData.enableDailyRefresh) {
-            scheduleDailyRefresh()
-        } else {
-            dailyRefreshTimer.stop()
-        }
+    function localDateString(date) {
+        const pad = n => (n < 10 ? "0" : "") + n
+        return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`
     }
 
-    function scheduleDailyRefresh() {
-        if (!pluginData.enableDailyRefresh) return
-
+    function parseDailyRefreshTime() {
         const timeString = pluginData.dailyRefreshTime || "09:00"
         const timeParts = timeString.split(":")
 
         if (timeParts.length !== 2) {
             console.error("Wallpaper of the day: Invalid time format:", timeString)
-            return
+            return null
         }
 
-        const targetHour   = parseInt(timeParts[0])
-        const targetMinute = parseInt(timeParts[1])
+        const hour   = parseInt(timeParts[0])
+        const minute = parseInt(timeParts[1])
 
-        if (isNaN(targetHour) || isNaN(targetMinute) ||
-            targetHour < 0 || targetHour > 23 ||
-            targetMinute < 0 || targetMinute > 59) {
+        if (isNaN(hour) || isNaN(minute) ||
+            hour < 0 || hour > 23 ||
+            minute < 0 || minute > 59) {
             console.error("Wallpaper of the day: Invalid time values:", timeString)
-            return
+            return null
         }
+        return { hour, minute }
+    }
 
-        const now    = new Date()
-        const target = new Date()
-        target.setHours(targetHour)
-        target.setMinutes(targetMinute)
-        target.setSeconds(0)
-        target.setMilliseconds(0)
+    function dailyTick() {
+        if (!root.dailyMode || root.isDownloading) return
 
-        if (target <= now) {
-            console.log("Wallpaper of the day: Scheduled time already passed, triggering catch-up refresh")
-            wallpaperCheck()
-            target.setDate(target.getDate() + 1)
+        const time = parseDailyRefreshTime()
+        if (!time) return
+
+        const now = new Date()
+        if (root.lastDailyRunDate === localDateString(now)) return
+
+        const target = new Date(now)
+        target.setHours(time.hour, time.minute, 0, 0)
+        if (now < target || now.getTime() < root.dailyRetryAt) return
+
+        console.log("Wallpaper of the day: Daily refresh triggered at scheduled time")
+        root.isScheduledRun = true
+        wallpaperCheck()
+    }
+
+    // Called after every successful Bing lookup. Today's run counts as done once
+    // Bing serves today's image, whether or not it had to be downloaded.
+    function finishDailyRun(imageDate) {
+        const today = localDateString(new Date())
+        if (imageDate >= today) {
+            if (root.lastDailyRunDate !== today) {
+                root.lastDailyRunDate = today
+                saveMetadata()
+            }
+        } else if (root.isScheduledRun) {
+            console.log("Wallpaper of the day: Today's image is not published yet, retrying later")
+            root.dailyRetryAt = Date.now() + root.dailyRetryInterval
         }
+    }
 
-        const msUntilTarget = target - now
-        dailyRefreshTimer.interval = msUntilTarget
-        dailyRefreshTimer.start()
-
-        console.log("Wallpaper of the day: Daily refresh scheduled for", target.toLocaleString(),
-                    "(in", Math.round(msUntilTarget / 1000 / 60), "minutes)")
+    function finishCheck(retryLater) {
+        if (retryLater && root.isScheduledRun) root.dailyRetryAt = Date.now() + root.offlineRetryInterval
+        root.isForcing = false
+        root.isScheduledRun = false
+        root.isDownloading = false
     }
 
     function wallpaperCheck() {
@@ -218,105 +241,94 @@ PluginComponent {
     function downloadWallpaper() {
         const bingApiUrl = `https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=${root.systemLocale}`
         Proc.runCommand(null, ["curl", "-s", bingApiUrl], (output, exitCode) => {
-            if (exitCode === 0) {
-                try {
-                    const response     = JSON.parse(output.trim())
-                    const responseData = response.images[0]
-
-                    if (root.currentTitle !== responseData.title || SessionData.wallpaperPath === "" || root.isForcing) {
-                        const lastImagePath = root.currentImageSavePath
-
-                        const imageUrl = responseData.url.split('&')[0].replace("1920x1080", "UHD")
-                        root.fullImageUrl = "https://www.bing.com" + imageUrl
-
-                        const namePart  = imageUrl.split('OHR.')[1]
-                        if (!namePart) {
-                            console.error("Wallpaper of the day: Unexpected image URL format:", imageUrl)
-                            root.isForcing = false
-                            root.isDownloading = false
-                            return
-                        }
-                        const lastDot   = namePart.lastIndexOf('.')
-                        const fileName  = namePart.substring(0, lastDot)
-                        const extension = namePart.substring(lastDot + 1)
-
-                        const datePrefix = pluginData.GnomeExtensionBingWallpaperCompatibility
-                                           ? responseData.startdate + "-" : ""
-                        const imageSavePath = Paths.strip(root.cachePath + `${datePrefix}${fileName}.${extension}`)
-                        const temporaryPath = imageSavePath + ".part"
-
-                        const failDownload = message => {
-                            console.error("Wallpaper of the day:", message)
-                            ToastService.showError("Wallpaper download failed")
-                            Proc.runCommand(null, ["rm", "-f", temporaryPath], () => {
-                                root.isForcing = false
-                                root.isDownloading = false
-                            }, 0)
-                        }
-
-                        Proc.runCommand(null, ["curl", "-f", "-sS", "-L", "-o", temporaryPath, root.fullImageUrl], (output, exitCode) => {
-                            if (exitCode !== 0) {
-                                failDownload("Failed to download image (curl exit code " + exitCode + ")")
-                                return
-                            }
-                            installDownloadedImage(temporaryPath, imageSavePath, error => {
-                                if (error) {
-                                    failDownload(error)
-                                    return
-                                }
-                                // async callback: outer try/catch doesn't cover it, so always release the lock
-                                try {
-                                    root.currentTitle = responseData.title
-                                    root.currentDescription = responseData.copyright
-                                    root.currentImageSavePath = imageSavePath
-                                    saveMetadata()
-                                    SessionData.setWallpaper(imageSavePath)
-
-                                    if (pluginData.deleteOld && lastImagePath && lastImagePath !== imageSavePath) {
-                                        Quickshell.execDetached(["rm", "-f", lastImagePath])
-                                    }
-                                    if (!root.isForcing) {
-                                        bingNotification()
-                                    } else {
-                                        ToastService.showInfo("Wallpaper check finished")
-                                    }
-                                } catch (e) {
-                                    console.error("Wallpaper of the day: Error applying wallpaper: ", e)
-                                } finally {
-                                    root.isForcing = false
-                                    root.isDownloading = false
-                                }
-                            })
-                        }, 0)
-
-                    } else {
-                        console.log("Wallpaper of the day: No new wallpaper found")
-                        if (!root.isStarting) {
-                            SessionData.setWallpaper(root.currentImageSavePath)
-                        }
-                        root.isForcing = false
-                        root.isDownloading = false
-                    }
-                } catch (e) {
-                    console.error("Wallpaper of the day: Error parsing Bing API response: ", e)
-                    root.isForcing = false
-                    root.isDownloading = false
-                } finally {
-                    root.isStarting = false
-                }
-            } else if (exitCode === 6 || exitCode === 7 || exitCode === 28) {
+            if (exitCode === 6 || exitCode === 7 || exitCode === 28) {
                 // couldn't resolve host / connect / timed out: most likely offline, retry on next check
                 console.error("Wallpaper of the day: Bing unreachable, no internet? (curl exit code " + exitCode + ")")
                 if (root.isForcing) ToastService.showError("Wallpaper of the Day: Bing unreachable")
-                root.isForcing = false
-                root.isDownloading = false
-                root.isStarting = false
-            } else {
+                finishCheck(true)
+                return
+            }
+            if (exitCode !== 0) {
                 console.error("Wallpaper of the day: Failed to retrieve metadata. (curl exit code " + exitCode + ")")
                 ToastService.showError("Wallpaper download failed")
-                root.isForcing = false
-                root.isDownloading = false
-                root.isStarting = false
+                finishCheck(true)
+                return
+            }
+            try {
+                const response     = JSON.parse(output.trim())
+                const responseData = response.images[0]
+
+                const imageUrl = responseData.url.split('&')[0].replace("1920x1080", "UHD")
+                const namePart = imageUrl.split('OHR.')[1]
+                if (!namePart) {
+                    console.error("Wallpaper of the day: Unexpected image URL format:", imageUrl)
+                    finishCheck(false)
+                    return
+                }
+                const lastDot   = namePart.lastIndexOf('.')
+                const fileName  = namePart.substring(0, lastDot)
+                const extension = namePart.substring(lastDot + 1)
+
+                const datePrefix = pluginData.GnomeExtensionBingWallpaperCompatibility
+                                   ? responseData.startdate + "-" : ""
+                const imageSavePath = Paths.strip(root.cachePath + `${datePrefix}${fileName}.${extension}`)
+                const temporaryPath = imageSavePath + ".part"
+
+                // Identify images by file name: Bing's title is no longer unique per day.
+                if (imageSavePath === root.currentImageSavePath && SessionData.wallpaperPath !== "" && !root.isForcing) {
+                    // Nothing new: leave whatever wallpaper the user has chosen alone.
+                    console.log("Wallpaper of the day: No new wallpaper found")
+                    finishDailyRun(responseData.startdate)
+                    finishCheck(false)
+                    return
+                }
+
+                const lastImagePath = root.currentImageSavePath
+                root.fullImageUrl = "https://www.bing.com" + imageUrl
+
+                const failDownload = message => {
+                    console.error("Wallpaper of the day:", message)
+                    ToastService.showError("Wallpaper download failed")
+                    Proc.runCommand(null, ["rm", "-f", temporaryPath], () => finishCheck(true), 0)
+                }
+
+                Proc.runCommand(null, ["curl", "-f", "-sS", "-L", "-o", temporaryPath, root.fullImageUrl], (output, exitCode) => {
+                    if (exitCode !== 0) {
+                        failDownload("Failed to download image (curl exit code " + exitCode + ")")
+                        return
+                    }
+                    installDownloadedImage(temporaryPath, imageSavePath, error => {
+                        if (error) {
+                            failDownload(error)
+                            return
+                        }
+                        // async callback: outer try/catch doesn't cover it, so always release the lock
+                        try {
+                            root.currentTitle = responseData.title
+                            root.currentDescription = responseData.copyright
+                            root.currentImageSavePath = imageSavePath
+                            finishDailyRun(responseData.startdate)
+                            saveMetadata()
+                            SessionData.setWallpaper(imageSavePath)
+
+                            if (pluginData.deleteOld && lastImagePath && lastImagePath !== imageSavePath) {
+                                Quickshell.execDetached(["rm", "-f", lastImagePath])
+                            }
+                            if (!root.isForcing) {
+                                bingNotification()
+                            } else {
+                                ToastService.showInfo("Wallpaper check finished")
+                            }
+                        } catch (e) {
+                            console.error("Wallpaper of the day: Error applying wallpaper: ", e)
+                        } finally {
+                            finishCheck(false)
+                        }
+                    })
+                }, 0)
+            } catch (e) {
+                console.error("Wallpaper of the day: Error parsing Bing API response: ", e)
+                finishCheck(false)
             }
         }, 0)
     }
@@ -328,16 +340,6 @@ PluginComponent {
         }
     }
 
-    function updateTimerState() {
-        if (SessionData.perMonitorWallpaper || SessionData.wallpaperCyclingEnabled || SessionData.perModeWallpaper) {
-            bingwallTimer.stop()
-            ToastService.showInfo("Wallpaper of the Day: update timer stopped")
-        } else {
-            if (!bingwallTimer.running) bingwallTimer.start()
-            ToastService.showInfo("Wallpaper of the Day: update timer started")
-        }
-    }
-
     function readMetadata(content) {
         root.isLoading = true
         try {
@@ -346,6 +348,7 @@ PluginComponent {
                 root.currentImageSavePath = metadata.currentImageSavePath ?? ""
                 root.currentTitle         = metadata.currentTitle         ?? ""
                 root.currentDescription   = metadata.currentDescription   ?? ""
+                root.lastDailyRunDate     = metadata.lastDailyRunDate     ?? ""
             }
         } catch (e) {
             console.error("Wallpaper of the day: Error loading metadata: ", e)
@@ -359,7 +362,8 @@ PluginComponent {
         bingMetadataFile.setText(JSON.stringify({
             currentImageSavePath: root.currentImageSavePath,
             currentTitle:         root.currentTitle,
-            currentDescription:   root.currentDescription
+            currentDescription:   root.currentDescription,
+            lastDailyRunDate:     root.lastDailyRunDate
         }, null, 2))
     }
 
